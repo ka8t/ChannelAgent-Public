@@ -93,3 +93,22 @@ def test_ci_audits_the_lock_and_fails_on_a_known_vulnerability():
     assert "--ignore-vuln" not in ci.split("run: pip-audit", 1)[1].splitlines()[0], (
         "no exception is accepted silently: add it with a comment, then update this test"
     )
+
+
+def test_only_moves_named_packages_and_refuses_anything_else_before_docker(tmp_path):
+    """`--only PKG ...` upgrades the named packages and keeps every other pin; a missing or
+    malformed name stops the script before it starts a container (a fake docker records it)."""
+    import subprocess
+
+    script = (REPO / "scripts" / "update_requirements.sh").read_text()
+    assert '--upgrade-package $package' in script
+    (tmp_path / "docker").write_text(f"#!/bin/sh\necho called >> {tmp_path}/docker.log\n")
+    (tmp_path / "docker").chmod(0o755)
+    env = {"PATH": f"{tmp_path}:/usr/bin:/bin"}
+    for args in (["--only"], ["--only", "pyjwt;rm"], ["--only", "a b"]):
+        run = subprocess.run(
+            ["bash", str(REPO / "scripts" / "update_requirements.sh"), *args],
+            capture_output=True, text=True, env=env, timeout=30,
+        )
+        assert run.returncode == 2, (args, run.stderr)
+    assert not (tmp_path / "docker.log").exists()

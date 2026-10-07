@@ -13,6 +13,10 @@
 #   scripts/update_requirements.sh            re-resolve with the newest versions
 #   scripts/update_requirements.sh --keep     re-resolve keeping current pins
 #                                             (after editing an .in file)
+#   scripts/update_requirements.sh --only PKG [PKG ...]
+#                                             keep every pin but move the named
+#                                             packages to their newest version (a
+#                                             security fix that pip-audit reports)
 #
 # Review the diff like code, then run the tests and `pip-audit`.
 set -euo pipefail
@@ -22,6 +26,19 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 UPGRADE="--upgrade"
 if [ "${1:-}" = "--keep" ]; then
   UPGRADE=""
+elif [ "${1:-}" = "--only" ]; then
+  shift
+  if [ "$#" -eq 0 ]; then
+    echo "usage: scripts/update_requirements.sh --only PKG [PKG ...]" >&2
+    exit 2
+  fi
+  UPGRADE=""
+  for package in "$@"; do
+    case "$package" in
+      *[!A-Za-z0-9._-]*) echo "not a package name: $package" >&2; exit 2 ;;
+    esac
+    UPGRADE="$UPGRADE --upgrade-package $package"
+  done
 fi
 
 docker run --rm -v "$PWD":/work -w /work python:3.12-slim sh -c "
