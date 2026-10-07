@@ -146,8 +146,21 @@ class Box:
         self.procs.append(proc)
         return proc
 
+    def _without_docker(self) -> Path:
+        """A PATH of every tool of /usr/bin and /bin but docker: a Linux CI machine has a real
+        docker there, so leaving the stub out of PATH is not enough."""
+        folder = self.path / "bin-without-docker"
+        if not folder.exists():
+            folder.mkdir()
+            for directory in (Path("/usr/bin"), Path("/bin")):
+                for tool in directory.iterdir():
+                    link = folder / tool.name
+                    if tool.name != "docker" and not link.exists():
+                        link.symlink_to(tool)
+        return folder
+
     def run(self, *args: str, docker=True, extra_env=None):
-        path = f"{self.path / 'bin'}:/usr/bin:/bin" if docker else "/usr/bin:/bin"
+        path = f"{self.path / 'bin'}:/usr/bin:/bin" if docker else str(self._without_docker())
         env = {
             "PATH": path,
             "HOME": str(self.path),
@@ -254,7 +267,9 @@ def test_status_looks_for_the_api_at_api_url_wherever_it_runs(box, api_stub):
 def test_status_says_when_the_llama_server_was_not_started_by_the_script(box):
     box.start_foreign_llama_lookalike()
     out = box.run("--status").stdout
-    assert "(not started by start.sh)" in _line(out, "llama-server")
+    # "(not started by start.sh)", or "(pid N, not started by start.sh)" where the script can
+    # find the process (Linux)
+    assert "not started by start.sh)" in _line(out, "llama-server")
 
 
 def test_a_pid_file_naming_an_unrelated_process_does_not_count_as_the_app(box):
