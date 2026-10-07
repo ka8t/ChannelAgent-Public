@@ -11,18 +11,27 @@ before any test module imports app.* code.
 """
 
 import os
-
-os.environ.setdefault("ENCRYPTION_KEY", "PmKTledxEc-gdO4tty5QO4PjB48zp_GqWMVIpigdwEg=")
-# The API answers only to its own names; the tests reach it as "t" and "testserver".
-os.environ.setdefault("ALLOWED_HOSTS", "t,testserver,localhost,127.0.0.1")
-# No test writes the repository's logs/ (the application's LOG_FILE default); a test of the log
-# file sets its own path.
-os.environ.setdefault("LOG_FILE", "")
-# The engine cache on disk asks the engine for its model and slots: off unless a test of it
-# turns it on (tests/test_slot_cache.py), so the mock engines of other tests need no slot API.
-os.environ.setdefault("SLOT_CACHE_MAX_MB", "0")
+import re
+from pathlib import Path
 
 import pytest
+
+# The developer's shell may export the application's variables (a real EMAIL_PASSWORD or
+# ENCRYPTION_KEY, an API_URL): the tests never see them. Every variable .env.example declares
+# is removed before the test values below are set; a test sets what it needs.
+_EXAMPLE = (Path(__file__).resolve().parent.parent / ".env.example").read_text()
+for _name in set(re.findall(r"^#?\s*([A-Z][A-Z0-9_]*)=", _EXAMPLE, re.M)):
+    os.environ.pop(_name, None)
+
+os.environ["ENCRYPTION_KEY"] = "PmKTledxEc-gdO4tty5QO4PjB48zp_GqWMVIpigdwEg="
+# The API answers only to its own names; the tests reach it as "t" and "testserver".
+os.environ["ALLOWED_HOSTS"] = "t,testserver,localhost,127.0.0.1"
+# No test writes the repository's logs/ (the application's LOG_FILE default); a test of the log
+# file sets its own path.
+os.environ["LOG_FILE"] = ""
+# The engine cache on disk asks the engine for its model and slots: off unless a test of it
+# turns it on (tests/test_slot_cache.py), so the mock engines of other tests need no slot API.
+os.environ["SLOT_CACHE_MAX_MB"] = "0"
 
 
 @pytest.fixture
