@@ -1,0 +1,20 @@
+# The host helper on Linux Docker Engine (docs/API_SECURITY.md 4.7).
+#
+# There a container cannot reach a service bound to the host's 127.0.0.1, and the helper is
+# never bound elsewhere: it listens on a Unix socket in ./run instead, mode 660, and the
+# container joins the socket's group to use it (it runs as uid 10001, not as you).
+#
+#   ./start.sh --config HOST_HELPER_SOCKET="$PWD/run/helper.sock"
+#   ./start.sh --config HOST_HELPER_GID="$(id -g)"
+#   docker compose -f docker-compose.yml -f docker-compose.host-helper-linux.yml up -d
+#
+# Docker Desktop (macOS, Windows) does not share host Unix sockets with containers: there
+# the default loopback port of docker-compose.yml is the transport.
+services:
+  channelagent:
+    environment:
+      HOST_HELPER_URL: "unix:///run/channelagent-host/helper.sock"
+    volumes:
+      - ./run:/run/channelagent-host
+    group_add:
+      - "${HOST_HELPER_GID:?set HOST_HELPER_GID to the group of the socket (id -g)}"

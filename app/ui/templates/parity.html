@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Script and UI parity - ChannelAgent admin{% endblock %}
+{% block content %}
+{{ m.page_head("Script and UI parity", "Computed when this page loads, from the code of both clients: the argument parser of start.sh --admin and the operation list of this UI, compared with the Admin API's manifest (version " ~ report.api_version ~ ").") }}
+
+<div class="summary">
+  <div><div class="n">{{ report.operations }}</div><div class="k">API operations</div></div>
+  <div><div class="n">{{ report.script }}</div><div class="k">start.sh --admin commands for them</div></div>
+  <div><div class="n">{{ report.ui }}</div><div class="k">UI screens for them</div></div>
+  <div><div class="n {{ 'state-bad' if report.differences else 'state-ok' }}">{{ report.differences | length }}</div><div class="k">differences</div></div>
+</div>
+
+{% if report.differences %}
+<div class="notice notice-bad"><div class="grow"><strong>Differences found</strong>
+  <ul>{% for d in report.differences %}<li>{{ d }}</li>{% endfor %}</ul></div></div>
+{% else %}
+<div class="notice notice-ok"><span class="badge badge-ok"><span class="dot"></span>Same</span>
+  <div class="grow">Every API operation is a start.sh command and a UI screen, with the same flags in the script as fields in the UI ({{ report.same_flags }} of {{ report.operations }}). The UI sends its calls to the same API routes, through the same access checks; the footer of each page lists them with the matching command.</div></div>
+{% endif %}
+
+<h2>start.sh commands besides --admin COMMAND</h2>
+<p class="meta">They start, stop or repair the application, so some must work without the API. Each one is listed with how it reaches the application and the screen that does the same.</p>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>command</th><th>path</th><th>API operations</th><th>UI</th><th>why</th></tr></thead>
+  <tbody>
+  {% for c in report.script_commands %}
+  <tr>
+    <td><code>./start.sh {{ c.command }}</code></td>
+    <td>{% if c.via == "api" %}<span class="badge badge-ok">through the API</span>{% elif c.via == "shared" %}<span class="badge badge-accent">same module as the API</span>{% else %}<span class="badge badge-warn">on this machine</span>{% endif %}</td>
+    <td>{% for o in c.operations %}<a href="/ui/op/{{ o }}">{{ o }}</a>{{ ", " if not loop.last }}{% else %}<span class="none">-</span>{% endfor %}</td>
+    <td>{% if c.ui %}<a href="{{ c.ui }}">{{ c.ui }}</a>{% else %}<span class="none">none</span>{% endif %}</td>
+    <td class="wide">{{ c.why }}</td>
+  </tr>
+  {% endfor %}
+  {% for c in report.client_only %}
+  <tr>
+    <td><code>./start.sh --admin {{ c.command }}</code></td>
+    <td><span class="badge">client side</span></td>
+    <td><span class="none">-</span></td><td><span class="none">-</span></td>
+    <td class="wide">{{ c.why }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>Hand-written screens</h2>
+<p class="meta">Laid out for one task, they call the same operations as the generated screens. Checked by the tests: a screen that calls an operation not listed here fails them.</p>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>screen</th><th>reads</th><th>buttons send</th></tr></thead>
+  <tbody>
+  {% for href, ops in report.screens.items() %}
+  <tr>
+    <td><a href="{{ href }}">{{ href }}</a></td>
+    <td>{% for o in ops.reads %}<a href="/ui/op/{{ o }}">{{ o }}</a>{{ ", " if not loop.last }}{% else %}<span class="none">-</span>{% endfor %}</td>
+    <td>{% for o in ops.writes %}<a href="/ui/op/{{ o }}">{{ o }}</a>{{ ", " if not loop.last }}{% else %}<span class="none">-</span>{% endfor %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>Every operation</h2>
+<input class="op-filter" type="search" placeholder="Filter by name, path or command" data-filter=".parity-list tbody tr" aria-label="Filter the operations">
+{% for tag, rows in report.groups %}
+<section class="op-group" data-group>
+  <h3>{{ tag.replace("-", " ") | capitalize }} <span class="meta">{{ rows | length }}</span></h3>
+  <div class="table-wrap parity-list">
+  <table>
+    <thead><tr><th>API call</th><th>scope</th><th>start.sh</th><th>UI</th><th>same</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>{{ m.method(r.method) }} <span class="mono">{{ r.path }}</span></td>
+      <td><span class="badge">{{ r.scope }}</span></td>
+      <td><code>{{ r.script }}</code></td>
+      <td><a href="{{ r.ui }}">{{ r.ui }}</a>{% for s in r.screens %}{% if s != r.ui %}<br><a class="meta" href="{{ s }}">{{ s }}</a>{% endif %}{% endfor %}</td>
+      <td>{% if r.problems %}<span class="badge badge-bad">{{ r.problems | join("; ") }}</span>{% else %}<span class="badge badge-ok">yes</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,32 @@
+# Local development compose file. Production topology (a server, containerized
+# inference backend): add docker-compose.prod.yml.
+services:
+  channelagent:
+    build: .
+    env_file: .env
+    environment:
+      # Wins over env_file: inside the container the API has to listen on
+      # every interface, whatever a native-run value in .env says.
+      API_SERVER_HOST: "0.0.0.0"
+      # The engine URL start.sh derived (a local engine: host.docker.internal:LLAMA_PORT);
+      # run without start.sh, the value of .env.
+      LLAMA_SERVER_URL: "${LLAMA_SERVER_URL:-}"
+      # The host helper, when HOST_HELPER_ENABLED=true: Docker Desktop reaches the
+      # host's loopback as host.docker.internal. On Linux Docker Engine, add
+      # docker-compose.host-helper-linux.yml (a Unix socket instead).
+      HOST_HELPER_URL: "http://host.docker.internal:${HOST_HELPER_PORT:-8701}"
+    ports:
+      # Admin API — only reachable at all once API_SERVER_KEY is
+      # set in .env, which also enables it inside app/main.py. Published
+      # on loopback only: it serves decrypted conversations behind
+      # one static key over plain HTTP. To reach it from another machine
+      # set API_BIND_ADDRESS (for example 0.0.0.0) and put TLS in front.
+      - "${API_BIND_ADDRESS:-127.0.0.1}:${API_SERVER_PORT:-8700}:${API_SERVER_PORT:-8700}"
+    volumes:
+      - ./data:/app/data
+    # host.docker.internal resolves automatically on Docker Desktop
+    # (macOS/Windows); this makes it resolve on Linux Docker Engine too,
+    # for parity with a Linux dev machine.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

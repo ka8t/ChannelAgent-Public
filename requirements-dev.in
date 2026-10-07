@@ -1,0 +1,9 @@
+# Test/dev-only tooling, not installed in the runtime Docker image.
+# Locked by scripts/update_requirements.sh into requirements-dev.txt, which
+# holds the runtime pins too (same versions as requirements.txt).
+-r requirements.in
+-c requirements.txt
+pytest
+pytest-asyncio
+ruff
+pip-audit

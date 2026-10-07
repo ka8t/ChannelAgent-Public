@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ op.command }} - ChannelAgent admin{% endblock %}
+{% block content %}
+<div class="page-head"><div>
+  <h1>{{ op.command.replace("-", " ") | capitalize }}</h1>
+  <p class="lead">{{ op.description }}</p>
+  <div class="chips">{{ m.method(op.method) }} <span class="mono">{{ op.path }}</span> <span class="badge">scope {{ op.scope }}</span>{% if op.returns_job %} <span class="badge badge-accent">runs as a job</span>{% endif %}</div>
+</div></div>
+<div class="grid-op">
+  <div>
+  {% if op.method == "GET" %}
+    {% if op.fields %}
+    <form class="panel" method="get" action="/ui/op/{{ op.command }}" data-cli="{{ op.command }}">
+      {% for f in op.fields %}{{ m.field(f, values.get(f.name), choices.get(f.name) if choices else none) }}{% endfor %}
+      <div class="form-actions"><button type="submit">Show</button></div>
+    </form>
+    {% else %}
+    <p class="meta">This operation takes no parameter: its result is below.</p>
+    {% endif %}
+  {% else %}
+    <form class="panel" method="post" action="/ui/op/{{ op.command }}" data-cli="{{ op.command }}"{% if op.method == "DELETE" or op.scope == "owner" %} data-confirm="Run {{ op.command }}?"{% endif %}>
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      {% for f in op.fields %}{{ m.field(f, values.get(f.name), choices.get(f.name) if choices else none) }}{% endfor %}
+      {% if not op.fields %}<p class="meta">No parameter.</p>{% endif %}
+      <div class="form-actions"><button type="submit" class="{{ 'danger' if op.method == 'DELETE' else '' }}">Run {{ op.command.replace("-", " ") }}</button></div>
+    </form>
+  {% endif %}
+  </div>
+  <div>
+    {{ m.term([cli], note="Follows the form as you type. A secret is never on the command line: - reads it from standard input. Add --json for the raw response.", live=true) }}
+  </div>
+</div>
+{% if result %}{{ m.result(result) }}{% endif %}
+{% endblock %}

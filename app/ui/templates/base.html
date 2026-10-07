@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}ChannelAgent admin{% endblock %}</title>
+<link rel="icon" href="/ui/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/ui/static/app.css">
+<script src="/ui/static/app.js" nonce="{{ nonce }}" defer></script>
+</head>
+<body>
+{% if signed_in %}
+<div class="shell">
+<aside class="rail">
+  <a class="brand" href="/ui/"><span class="brand-mark" aria-hidden="true">&gt;_</span><span class="brand-name">ChannelAgent<small>Administration</small></span></a>
+  <nav aria-label="Screens">
+    {% for section, items in nav %}
+    <div class="nav-section">
+      <h2>{{ section }}</h2>
+      {% for label, href in items %}<a href="{{ href }}"{% if href == current %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+    </div>
+    {% endfor %}
+  </nav>
+  <div class="rail-foot">
+    <form class="logout" method="post" action="/ui/logout">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit">Sign out</button>
+    </form>
+  </div>
+</aside>
+<div class="page">
+<main>
+{% if flash %}
+<div class="notice notice-ok" role="status">
+  <span class="badge badge-ok">HTTP {{ flash.status }}</span>
+  <div class="grow"><strong>{{ flash.label }}: done.</strong> <span class="meta">{{ flash.method }} {{ flash.path }}, the same call from the terminal:</span>
+  {% if flash.cli %}<code class="cli">{{ flash.cli }}</code>{% endif %}</div>
+</div>
+{% endif %}
+{% block content %}{% endblock %}
+</main>
+<footer class="calls">
+  <details>
+    <summary>This page made <strong>{{ api_calls | length }}</strong> Admin API call{{ "" if api_calls | length == 1 else "s" }}: the same calls from <code>start.sh</code></summary>
+    {% if api_calls %}
+    <table>
+      <thead><tr><th>call</th><th>HTTP</th><th>operation</th><th>from the terminal</th></tr></thead>
+      <tbody>
+      {% for c in api_calls %}
+      <tr>
+        <td><span class="method method-{{ c.method | lower }}">{{ c.method }}</span> <span class="mono">{{ c.path }}</span></td>
+        <td><span class="badge {{ 'badge-ok' if c.status < 400 else 'badge-bad' }}">{{ c.status }}</span></td>
+        <td>{% if c.command %}<a href="/ui/op/{{ c.command }}">{{ c.command }}</a>{% else %}-{% endif %}</td>
+        <td>{% if c.cli %}<code class="cli">{{ c.cli }}</code>{% else %}-{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    <p class="meta">Both clients are generated from the same API manifest: <a href="/ui/parity">compare the script and the UI</a>.</p>
+  </details>
+</footer>
+</div>
+</div>
+{% else %}
+{% block signed_out %}<main class="signin">{{ self.content() }}</main>{% endblock %}
+{% endif %}
+</body>
+</html>

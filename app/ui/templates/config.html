@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block content %}
+{{ m.page_head("Configuration", "The variables of .env, checked by the same rules as ./start.sh --config KEY=VALUE. A secret is never shown. A change applies at the next start.") }}
+<div class="toolbar">
+  <input class="op-filter" type="search" placeholder="Filter the variables" data-filter=".config-list tbody tr" aria-label="Filter the variables">
+  <a class="button secondary" href="/ui/status">Restart from Status</a>
+</div>
+{% if code >= 400 %}{{ m.http_error(code, entries) }}
+{% else %}
+<div class="table-wrap config-list">
+<table>
+<thead><tr><th>variable</th><th>current value</th><th>change</th></tr></thead>
+<tbody>
+{% for e in entries %}
+<tr>
+  <td class="mono">{{ e.key }}</td>
+  <td>{% if e.secret %}{% if e.is_set %}<span class="badge badge-ok">set (hidden)</span>{% else %}<span class="badge">not set</span>{% endif %}{% else %}<span class="mono">{{ e.value or "" }}</span>{% endif %}</td>
+  <td class="actions">
+  {% if e.key == "ENCRYPTION_KEY" %}<span class="meta">rotated from the <a href="/ui/status">Status</a> screen only</span>
+  {% else %}
+    <form class="row-form" method="post" action="/ui/op/set-config" data-confirm="Set {{ e.key }}?">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="key" value="{{ e.key }}">
+      <input type="hidden" name="next" value="/ui/config">
+      <input type="{{ 'password' if e.secret else 'text' }}" name="value" value="{{ '' if e.secret else (e.value or '') }}" autocomplete="off" aria-label="New value of {{ e.key }}">
+      <button type="submit" class="small">Save</button>
+    </form>
+  {% endif %}
+  </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+{{ m.term(["./start.sh --config", "./start.sh --config KEY=VALUE", "./start.sh --admin get-config", "./start.sh --admin set-config --key KEY --value VALUE"], note="--config works with the application stopped: it uses app/settings_rules.py, the module of the API's /config routes, so both refuse the same values.") }}
+{% endblock %}

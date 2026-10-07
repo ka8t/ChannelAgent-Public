@@ -1,0 +1,66 @@
+# Production VPS topology: a containerized llama-server on the
+# internal Docker network instead of the Mac's native one — the other
+# half of the compute topology. Use
+# alongside the base compose file, not instead of it:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+#
+# Requires a prebuilt llama-server binary and a .gguf model already on
+# the VPS (obtaining one is a separate concern from this topology; any
+# prebuilt Linux llama-server release works). Point LLAMA_SERVER_BIN_DIR and
+# MODELS_DIR in .env at their directories.
+#
+# CPU-only (no -ngl GPU offload flag, unlike the Mac's Metal setup) —
+# see LLAMA_THREADS in .env. GPU variants are out of scope here; a GPU
+# build of llama-server would need its own compose file.
+services:
+  llama-server:
+    build:
+      context: .
+      dockerfile: docker/llama-server.Dockerfile
+    container_name: channelagent-llama-server
+    restart: unless-stopped
+    volumes:
+      - ${MODELS_DIR:?set MODELS_DIR in .env}:/models:ro
+      - ${LLAMA_SERVER_BIN_DIR:?set LLAMA_SERVER_BIN_DIR in .env to the prebuilt binary's directory}:/vendor:ro
+    command:
+      - /vendor/llama-server
+      - --port
+      - "8080"
+      - --host
+      - "0.0.0.0"
+      - --model
+      - /models/${MODEL_FILE:?set MODEL_FILE in .env}
+      - --ctx-size
+      - "${LLAMA_CTX_SIZE:-65536}"
+      - --threads
+      - "${LLAMA_THREADS:-4}"
+      - --jinja
+      - --flash-attn
+      - "on"
+      - -ctk
+      - q8_0
+      - -ctv
+      - q8_0
+      - --predict
+      - "4096"
+      - --repeat-penalty
+      - "1.1"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # Overrides the base compose file's channelagent service: reaches
+  # llama-server by its internal Docker network hostname instead of
+  # host.docker.internal, and waits for it to actually be healthy
+  # before starting — no code change, only this env var differs from
+  # the dev topology.
+  channelagent:
+    depends_on:
+      llama-server:
+        condition: service_healthy
+    environment:
+      - LLAMA_SERVER_URL=http://llama-server:8080

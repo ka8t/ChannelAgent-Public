@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}All operations - ChannelAgent admin{% endblock %}
+{% block content %}
+{{ m.page_head("All operations", "Every operation of the Admin API, by subject. Each has a screen here and the same command in start.sh.") }}
+<input class="op-filter" type="search" placeholder="Filter by name, path or description" data-filter=".op-list tbody tr" aria-label="Filter the operations">
+{% for tag, ops in groups %}
+<section class="op-group" data-group>
+  <h2>{{ tag.replace("-", " ") }} <span class="meta">{{ ops | length }}</span></h2>
+  <div class="table-wrap op-list">
+  <table>
+    <thead><tr><th>operation</th><th>call</th><th>scope</th><th>what it does</th></tr></thead>
+    <tbody>
+    {% for op in ops %}
+    <tr>
+      <td><a class="op" href="/ui/op/{{ op.command }}">{{ op.command }}</a></td>
+      <td>{{ m.method(op.method) }} <span class="mono">{{ op.path }}</span></td>
+      <td><span class="badge">{{ op.scope }}</span></td>
+      <td>{{ op.description }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endfor %}
+{% endblock %}

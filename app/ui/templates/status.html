@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block content %}
+{{ m.page_head("Status", "The application, its engine and database, and the host it runs on.") }}
+{% if api_status %}
+<section class="health" aria-label="Application">
+  <div><div class="label">Application</div><div class="value state-ok">Running</div><div class="sub">up for {{ api_status.uptime_seconds | duration }}, since {{ api_status.started_at }}</div></div>
+  <div><div class="label">Engine</div>
+  {% if api_status.engine.reachable %}<div class="value state-ok">Reachable</div>
+    <div class="sub">model {{ api_status.engine.model or "?" }}, context {{ api_status.engine.n_ctx or "?" }}{% if api_status.engine.slots_total is not none %}, slots {{ api_status.engine.slots_busy }} busy of {{ api_status.engine.slots_total }}{% endif %}</div>
+  {% else %}<div class="value state-bad">Not reachable</div><div class="sub">the agents cannot answer</div>{% endif %}</div>
+  <div><div class="label">Database</div><div class="value">{{ api_status.database.kind }}</div><div class="sub">revision {{ api_status.database.revision or "-" }}, {{ api_status.database.size_bytes | size }}</div></div>
+  <div><div class="label">API version</div><div class="value">{{ api_status.api_version }}</div></div>
+</section>
+<div class="panel">
+  <h2>Components</h2>
+  {% if api_status.components %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>component</th><th>state</th><th class="num">last success</th></tr></thead>
+    <tbody>
+    {% for name, c in api_status.components.items() %}
+    <tr><td>{{ name }}</td>
+      <td>{% if c.healthy %}<span class="badge badge-ok"><span class="dot"></span>healthy</span>{% else %}<span class="badge badge-bad"><span class="dot"></span>late</span>{% endif %}</td>
+      <td class="num">{{ c.seconds_since_success }} s ago</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="meta">No component runs (no channel is configured).</p>{% endif %}
+</div>
+{% else %}
+<p class="error">The status could not be read from the API.</p>
+{% endif %}
+
+<div class="grid-2">
+<section class="panel">
+  <h2>Host</h2>
+  {% if host_code == 200 %}
+  <dl class="facts">
+    <dt>Mode</dt><dd>{{ host.mode }}</dd>
+    <dt>Application</dt><dd>{% if host.running %}<span class="badge badge-ok"><span class="dot"></span>running</span>{% else %}<span class="badge badge-bad"><span class="dot"></span>stopped</span>{% endif %}{% if host.reasons %} <span class="meta">{{ host.reasons | join(", ") }}</span>{% endif %}</dd>
+    <dt>Helper started</dt><dd>{{ host.helper_started_at }}</dd>
+  </dl>
+  <div class="toolbar">
+    {% for command, label, style in (("host-restart", "Restart", ""), ("host-stop", "Stop", "danger"), ("host-start", "Start", "secondary")) %}
+    <form class="inline" method="post" action="/ui/op/{{ command }}" data-confirm="{{ label }} the application?">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit" class="{{ style }}">{{ label }}</button>
+    </form>
+    {% endfor %}
+  </div>
+  {{ m.term(["./start.sh --admin host-restart", "./start.sh --admin host-stop", "./start.sh --admin host-start"]) }}
+  {% else %}
+  <p class="meta">Host helper: {{ host.detail if host is mapping else host }}</p>
+  {{ m.term(["./start.sh --status", "./start.sh --stop"], note="Without the host helper, the script acts on this machine directly.") }}
+  {% endif %}
+</section>
+{% if host_code == 200 %}
+<section class="panel">
+  <h2>Rotate the encryption key</h2>
+  <p class="meta">The application is stopped, the key rotated with backups first, the data read back, and the application started again. Try the dry run first.</p>
+  <div class="toolbar">
+    {% for dry, label, style in (("true", "Dry run", "secondary"), ("false", "Rotate the key", "danger")) %}
+    <form class="inline" method="post" action="/ui/op/host-rekey" data-confirm="{{ label }}?">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="dry_run" value="{{ dry }}">
+      <button type="submit" class="{{ style }}">{{ label }}</button>
+    </form>
+    {% endfor %}
+  </div>
+  {{ m.term(["./start.sh --admin host-rekey --dry-run true", "./start.sh --admin host-rekey --dry-run false"]) }}
+</section>
+{% endif %}
+</div>
+{% if schedule %}
+<section class="panel">
+  <div class="panel-head"><h2>Scheduled backup</h2><a href="/ui/backups">Backups</a></div>
+  <p>{% if not schedule.enabled %}<span class="badge">disabled</span>{% elif schedule.failing %}<span class="badge badge-bad">failing</span> <span class="error">{{ schedule.last_error }}</span>{% else %}<span class="badge badge-ok">on</span> Every {{ schedule.interval_minutes }} min, keep {{ schedule.keep }}; last success {{ schedule.last_success_at or "none yet" }}; next {{ schedule.next_run_at or "within a minute" }}.{% endif %}</p>
+</section>
+{% endif %}
+{% endblock %}

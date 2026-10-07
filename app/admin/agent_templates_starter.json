@@ -1,0 +1,62 @@
+[
+  {
+    "name": "news-digest",
+    "description": "A digest of the news of RSS or Atom feeds on a topic, sent on a schedule.",
+    "guidance": "Attach the read_feed tool. In task_prompt, name the feed addresses to read (from the known feeds that match the topic, or the ones the user gives), how many items to keep and the format: one line per item with its title and its link.",
+    "agent_instructions": "Copy every link exactly as the feed gives it, character for character; never rebuild a link from a date or a title.",
+    "memory_mode": "off",
+    "tools": [
+      "read_feed"
+    ],
+    "needs_schedule": true,
+    "questions": {
+      "purpose": "Which topic should the digest cover?",
+      "schedule": "When should I send the digest (for example every day at 8:00)?"
+    },
+    "enabled": true
+  },
+  {
+    "name": "page-watch",
+    "description": "Watch a web page and say what changed since the last check, on a schedule.",
+    "guidance": "Attach the fetch_page tool. In task_prompt, give the page's https address and what kind of change matters.",
+    "agent_instructions": "Read the page with fetch_page, compare it with what you saved in your memory at the last run, say only what changed (or that nothing changed), then save what you saw for the next run.",
+    "memory_mode": "ondemand",
+    "tools": [
+      "fetch_page"
+    ],
+    "needs_schedule": true,
+    "questions": {
+      "task_prompt": "Which page should I watch (its https address), and what kind of change matters?",
+      "schedule": "How often should I check it (for example every 6 hours)?"
+    },
+    "enabled": true
+  },
+  {
+    "name": "reminder",
+    "description": "Remind the user of something at a time or on a schedule.",
+    "guidance": "No tool. The task_prompt is the reminder itself, as the user wrote it.",
+    "agent_instructions": "Send the reminder you are given in one or two short, friendly sentences. Use no tool.",
+    "memory_mode": "off",
+    "tools": [],
+    "needs_schedule": true,
+    "questions": {
+      "schedule": "When should I remind you?",
+      "task_prompt": "What should the reminder say?"
+    },
+    "enabled": true
+  },
+  {
+    "name": "daily-summary",
+    "description": "A short report each day on a subject the user chooses, such as a morning briefing.",
+    "guidance": "Use a daily schedule. In task_prompt, say what the report covers and its length.",
+    "agent_instructions": "Keep the report short: a title line, then at most five points.",
+    "memory_mode": null,
+    "tools": [],
+    "needs_schedule": true,
+    "questions": {
+      "purpose": "What should the daily report cover?",
+      "schedule": "At what time each day?"
+    },
+    "enabled": true
+  }
+]

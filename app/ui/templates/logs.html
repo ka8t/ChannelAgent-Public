@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block content %}
+{{ m.page_head("Logs", "The messages exchanged on every channel. Reading them is itself recorded as an admin event, so nothing is read until you search.") }}
+<div class="grid-op">
+<form class="panel" method="get" action="/ui/logs" data-cli="search-logs">
+  <input type="hidden" name="run" value="1">
+  {% for f in op.fields %}{{ m.field(f, values.get(f.name)) }}{% endfor %}
+  <div class="form-actions"><button type="submit">Search</button></div>
+</form>
+<div>
+  {{ m.term([cli], note="Follows the form as you type.", live=true) }}
+  {% if values.get("user_id") %}
+  <div class="panel">
+    <h3>Export this user's conversation</h3>
+    <div class="toolbar">
+      <a class="button secondary small" href="/ui/op/export-conversation?user_id={{ values.user_id }}&amp;format=markdown&amp;include_text=true">Markdown</a>
+      <a class="button secondary small" href="/ui/op/export-conversation?user_id={{ values.user_id }}&amp;format=json&amp;include_text=true">JSON</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+</div>
+{% if result %}
+  {% if result.status >= 400 %}{{ m.result(result) }}
+  {% elif not result.body %}<div class="empty">No message matches.</div>
+  {% else %}
+  <h2>{{ result.body | length }} message{{ "s" if result.body | length > 1 }}</h2>
+  <ol class="messages">
+  {% for e in result.body %}
+    <li><p class="meta"><span class="badge {{ 'badge-accent' if e.direction == 'inbound' else '' }}">{{ e.direction }}</span> {{ e.created_at }}, {{ e.channel }}, user {{ e.user_id }}, agent {{ e.agent_id }}, {{ e.status }}</p>
+    <pre class="msg">{{ e.text }}</pre></li>
+  {% endfor %}
+  </ol>
+  {% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% macro action(command, label, fields, look="secondary") %}
+<form class="inline" method="post" action="/ui/op/{{ command }}">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% for name, value in fields %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+  <input type="hidden" name="next" value="/ui/tasks">
+  <button type="submit" class="small {{ look }}">{{ label }}</button>
+</form>
+{% endmacro %}
+{% block content %}
+{% call m.page_head("Scheduled tasks", "Every user's scheduled prompts, with one switch that pauses them all.") %}
+<a class="button" href="/ui/op/create-task">New task</a>
+{% endcall %}
+<div class="notice {{ 'notice-bad' if paused else '' }}">
+{% if paused is none %}<div class="grow">Pause state unknown.</div>
+{% elif paused %}<span class="badge badge-bad"><span class="dot"></span>Paused</span><div class="grow"><strong>Paused</strong>: no task runs.</div> {{ action("set-pause", "Resume all", [("paused", "false")], "") }}
+{% else %}<span class="badge badge-ok"><span class="dot"></span>Running</span><div class="grow">Running. Tasks run at their time.</div> {{ action("set-pause", "Pause all", [("paused", "true")], "danger") }}
+{% endif %}
+</div>
+{% if code >= 400 %}{{ m.http_error(code, rows) }}
+{% elif not rows %}<div class="empty">No scheduled task. <a href="/ui/op/create-task">Create one</a>.</div>
+{% else %}
+<div class="table-wrap">
+<table>
+<thead><tr><th>id</th><th>user</th><th>agent</th><th>channel</th><th>schedule</th><th>prompt</th><th>next run</th><th>last run</th><th class="num">runs</th><th></th></tr></thead>
+<tbody>
+{% for t in rows %}
+<tr>
+  <td>{{ t.id }}</td><td>{{ t.user_id }}</td><td>{{ t.agent_id }}</td><td>{{ t.channel }}</td>
+  <td>{{ t.kind }} {{ t.expr }} ({{ t.timezone }}){% if not t.enabled %} <span class="badge badge-warn">stopped</span>{% endif %}</td>
+  <td><pre class="msg">{{ t.prompt }}</pre></td>
+  <td>{{ t.next_run_at or "-" }}</td>
+  <td>{{ t.last_run_at or "-" }}{% if t.last_status %} <span class="badge {{ 'badge-ok' if t.last_status == 'ok' else 'badge-bad' }}">{{ t.last_status }}</span>{% endif %}{% if t.last_error %} <span class="error">{{ t.last_error }}</span>{% endif %}</td>
+  <td class="num">{{ t.run_count }}</td>
+  <td class="actions">
+    {{ action("run-task", "Run now", [("task_id", t.id)], "") }}
+    {% if t.enabled %}{{ action("update-task", "Stop", [("task_id", t.id), ("enabled", "false")]) }}
+    {% else %}{{ action("update-task", "Start", [("task_id", t.id), ("enabled", "true")]) }}{% endif %}
+    {{ action("delete-task", "Delete", [("task_id", t.id)], "danger") }}
+  </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+{{ m.term(["./start.sh --admin list-tasks", "./start.sh --admin set-pause --paused true", "./start.sh --admin run-task --task-id ID", "./start.sh --admin update-task --task-id ID --enabled false", "./start.sh --admin delete-task --task-id ID"]) }}
+{% endblock %}

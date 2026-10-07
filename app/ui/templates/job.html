@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block content %}
+{{ m.page_head("Job " ~ job_id, "A long operation running in the background; this page follows it to its end.") }}
+{% if code >= 400 %}
+{{ m.result({"status": code, "body": job}) }}
+{% else %}
+<section class="panel" id="job" data-job-id="{{ job_id }}" data-final="{{ 'yes' if job.status in final else 'no' }}">
+  <dl class="facts">
+    <dt>Kind</dt><dd>{{ job.kind }}</dd>
+    <dt>Status</dt><dd><strong id="job-status">{{ job.status }}</strong></dd>
+  </dl>
+  <p><progress id="job-progress" max="1" value="{{ job.progress or 0 }}"></progress></p>
+  <pre id="job-message" class="msg">{{ job.message or job.error or "" }}</pre>
+  {# A stop, start, restart, restore or rekey of the host helper cannot be cut half-way (409). #}
+  {% if job.status not in final and not job.kind.startswith("host-") %}
+  <form class="inline" method="post" action="/ui/op/cancel-job" data-confirm="Cancel job {{ job_id }}?">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="job_id" value="{{ job_id }}">
+    <input type="hidden" name="next" value="/ui/jobs/{{ job_id }}">
+    <button type="submit" class="danger small">Cancel</button>
+  </form>
+  {% endif %}
+  {% if job.status in final %}<h3>Outcome</h3>{{ m.value(job) }}{% endif %}
+</section>
+{{ m.term(["./start.sh --admin get-job --job-id " ~ job_id], note="A command that starts a job waits for it to end; --no-wait prints the job instead.") }}
+{% endif %}
+{% endblock %}

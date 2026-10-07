@@ -1,0 +1,54 @@
+# --- Secrets & environment ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# --- Encryption keys & local key material ---
+*.fernet
+secrets/
+
+# --- Local databases and runtime data, never committed (data/ holds the database, the
+# backups, the notes folder of a test and a SearXNG settings file with its secret) ---
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Docker ---
+*.log
+
+# --- start.sh's native llama-server management ---
+*.pid
+logs/
+# the mode start.sh last started the application in, for the host helper
+.run-mode
+# the host helper's Unix socket on Linux (docker-compose.host-helper-linux.yml)
+run/
+
+# --- Editor / OS ---
+.DS_Store
+.vscode/
+.idea/
+
+# Local inference assets: model weights and the llama-server bundle
+models/
+vendor/
+
+*.bak
+
+# Local caches of dev tools
+.cache/

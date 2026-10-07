@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block content %}
+{{ m.page_head("Overview", "Signed in as " ~ (whoami.actor if whoami is mapping else "?") ~ ", Admin API version " ~ (whoami.api_version if whoami is mapping else "?") ~ ".") }}
+{% if api_status %}
+{% set comps = api_status.components or {} %}
+{% set healthy = comps.values() | selectattr("healthy") | list | length %}
+<section class="health" aria-label="Health">
+  <div><div class="label">Application</div><div class="value state-ok">Running</div><div class="sub">up for {{ api_status.uptime_seconds | duration }}</div></div>
+  <div><div class="label">Engine</div>
+    {% if api_status.engine.reachable %}<div class="value state-ok">Reachable</div><div class="sub">{{ api_status.engine.model or "model unknown" }}</div>
+    {% else %}<div class="value state-bad">Not reachable</div><div class="sub">the agents cannot answer</div>{% endif %}</div>
+  <div><div class="label">Database</div><div class="value">{{ api_status.database.kind }}</div><div class="sub">{{ api_status.database.size_bytes | size_short }}, revision {{ api_status.database.revision or "-" }}</div></div>
+  <div><div class="label">Components</div>
+    {% if comps %}<div class="value {{ 'state-ok' if healthy == comps | length else 'state-bad' }}">{{ healthy }} of {{ comps | length }} healthy</div>
+    <div class="sub">{{ comps.keys() | join(", ") }}</div>
+    {% else %}<div class="value">None running</div><div class="sub">no channel is configured</div>{% endif %}</div>
+</section>
+{% else %}
+<p class="error">The status could not be read from the API.</p>
+{% endif %}
+
+<div class="panel">
+  <div class="panel-head"><h2>One API, two clients</h2><a href="/ui/parity">Full comparison</a></div>
+  <div class="flow">
+    <div class="node"><strong><code>start.sh</code></strong><span class="meta">{{ parity.script }} commands generated from the manifest</span></div>
+    <div class="arrow" aria-hidden="true">&rarr;</div>
+    <div class="node core"><strong>Admin API</strong><span class="meta">{{ parity.operations }} operations, each with a scope and a token check</span></div>
+    <div class="arrow" aria-hidden="true">&larr;</div>
+    <div class="node"><strong>This UI</strong><span class="meta">{{ parity.ui }} screens generated from the same manifest</span></div>
+  </div>
+  {% if parity.differences %}
+  <p class="error">{{ parity.differences | length }} difference{{ "s" if parity.differences | length > 1 }} between the script and the UI: <a href="/ui/parity">see them</a>.</p>
+  {% else %}
+  <p><span class="badge badge-ok"><span class="dot"></span>No difference</span> <span class="meta">{{ parity.same_flags }} of {{ parity.operations }} operations have the same command, the same flags and the same fields, checked now from the code of both clients.</span></p>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,92 @@
+{% macro value(v, depth=0) -%}
+{%- if v is none -%}<span class="none">-</span>
+{%- elif v is sameas true -%}<span class="badge badge-ok">yes</span>
+{%- elif v is sameas false -%}<span class="badge">no</span>
+{%- elif v is mapping -%}
+  {%- if depth > 2 -%}<pre>{{ v | tojson(indent=2) }}</pre>
+  {%- else -%}<dl>{% for k, x in v.items() %}<dt>{{ k }}</dt><dd>{{ value(x, depth + 1) }}</dd>{% endfor %}</dl>{%- endif -%}
+{%- elif v is string -%}{{ v }}
+{%- elif v is sequence -%}
+  {%- if v and v[0] is mapping and depth < 2 -%}{{ table(v, none, depth + 1) }}
+  {%- elif not v -%}<span class="none">-</span>
+  {%- else -%}<ul>{% for x in v %}<li>{{ value(x, depth + 1) }}</li>{% endfor %}</ul>{%- endif -%}
+{%- else -%}{{ v }}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro table(rows, links=none, depth=0) -%}
+{% set ns = namespace(cols=[]) %}
+{% for r in rows %}{% if r is mapping %}{% for k in r %}{% if k not in ns.cols %}{% set ns.cols = ns.cols + [k] %}{% endif %}{% endfor %}{% endif %}{% endfor %}
+<div class="table-wrap">
+<table>
+<thead><tr>{% for c in ns.cols %}<th>{{ c.replace("_", " ") }}</th>{% endfor %}{% if links %}<th>actions</th>{% endif %}</tr></thead>
+<tbody>
+{% for r in rows %}
+<tr>
+{% for c in ns.cols %}<td>{{ value(r.get(c) if r is mapping else none, depth + 1) }}</td>{% endfor %}
+{% if links %}<td class="actions">{% for name, href in links[loop.index0] %}<a class="button small {{ 'danger' if name.startswith('delete') else 'secondary' }}" href="{{ href }}">{{ name.replace("-", " ") }}</a>{% endfor %}</td>{% endif %}
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{%- endmacro %}
+
+{% macro field(f, val, choices=none) -%}
+{% set label = f.name[:-3] if f.name.endswith("_id") else f.name %}
+{% set flag = "--" ~ f.name.replace("_", "-") %}
+<label class="field">
+  <span class="field-name">{{ label.replace("_", " ") | capitalize }}{% if f.required and f.default is none %} <span class="req" aria-label="required">*</span>{% endif %}</span>
+  {% if choices is not none %}
+  <select name="{{ f.name }}" data-flag="{{ flag }}"><option value="">{{ "Choose" if choices else "None available" }}</option>{% for v, l in choices %}<option value="{{ v }}"{% if val == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  {% elif f.enum %}
+  <select name="{{ f.name }}" data-flag="{{ flag }}"><option value=""></option>{% for e in f.enum %}<option value="{{ e }}"{% if val == e %} selected{% endif %}>{{ e }}</option>{% endfor %}</select>
+  {% elif f.type == "boolean" %}
+  <select name="{{ f.name }}" data-flag="{{ flag }}"><option value=""></option>{% for e, l in (("true", "yes"), ("false", "no")) %}<option value="{{ e }}"{% if val == e %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  {% elif f.type == "array" and f["items"] == "string" %}
+  <textarea name="{{ f.name }}" rows="4" placeholder="one per line" data-flag="{{ flag }}" data-lines="yes">{{ val or "" }}</textarea>
+  {% elif f.type in ("array", "object") %}
+  <textarea name="{{ f.name }}" rows="4" class="code" placeholder="{{ '[ ... ]' if f.type == 'array' else '{ ... }' }} (JSON)" data-flag="{{ flag }}">{{ val or "" }}</textarea>
+  {% elif f.secret %}
+  <input type="password" name="{{ f.name }}" value="" autocomplete="new-password" data-flag="{{ flag }}" data-secret="yes">
+  {% elif f.type in ("integer", "number") %}
+  <input type="number" step="any" name="{{ f.name }}" value="{{ val or "" }}" data-flag="{{ flag }}">
+  {% elif f.name in ("system_prompt", "body", "prompt", "task_prompt", "guidance", "text", "content") %}
+  <textarea name="{{ f.name }}" rows="5" data-flag="{{ flag }}">{{ val or "" }}</textarea>
+  {% else %}
+  <input type="text" name="{{ f.name }}" value="{{ val or "" }}" data-flag="{{ flag }}">
+  {% endif %}
+  {% if f.description or f.default is not none %}<small>{{ f.description }}{% if f.default is not none %}{{ " " if f.description }}Default: {{ f.default }}.{% endif %}</small>{% endif %}
+</label>
+{%- endmacro %}
+
+{% macro result(r) -%}
+<section class="result {{ 'error' if r.status >= 400 else 'ok' }}">
+  <h2><span class="badge {{ 'badge-bad' if r.status >= 400 else 'badge-ok' }}">HTTP {{ r.status }}</span> {{ "Refused" if r.status >= 400 else "Result" }}</h2>
+  {% if r.body is none %}<p>Done.</p>
+  {% elif r.body is string %}<pre>{{ r.body[:5000] }}</pre>
+  {% elif r.body is sequence and r.body and r.body[0] is mapping %}{{ table(r.body, r.links) }}
+  {% elif r.body is sequence and not r.body %}<p class="meta">Nothing to show.</p>
+  {% else %}{{ value(r.body) }}
+  {% endif %}
+</section>
+{%- endmacro %}
+
+{# The same action from the terminal: shown under every hand-written screen's controls. #}
+{% macro term(lines, title="The same from the terminal", note=none, live=false) -%}
+<div class="term">
+  <div class="term-title"><span>{{ title }}</span><button type="button" class="copy" data-copy-term>Copy</button></div>
+  {% for line in lines %}<div class="line"{% if live and loop.first %} id="cli-line"{% endif %}>{{ line }}</div>{% endfor %}
+  {% if note %}<div class="note">{{ note }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro http_error(code, body) -%}
+<p class="error">HTTP {{ code }}: {{ body.detail if body is mapping else body }}</p>
+{%- endmacro %}
+
+{% macro method(m) -%}<span class="method method-{{ m | lower }}">{{ m }}</span>{%- endmacro %}
+
+{% macro page_head(title, lead=none) -%}
+<div class="page-head"><div><h1>{{ title }}</h1>{% if lead %}<p class="lead">{{ lead }}</p>{% endif %}</div>{{ caller() if caller else "" }}</div>
+{%- endmacro %}

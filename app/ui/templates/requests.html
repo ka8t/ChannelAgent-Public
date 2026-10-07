@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block content %}
+{{ m.page_head("Access requests", "People who wrote to the bot without an account. Approving creates their user with the chat permission.") }}
+<nav class="tabs" aria-label="Status">{% for s in ("pending", "approved", "denied", "all") %}<a href="/ui/requests?status={{ s }}"{% if s == state %} class="current" aria-current="page"{% endif %}>{{ s | capitalize }}</a>{% endfor %}</nav>
+{% if code >= 400 %}{{ m.http_error(code, rows) }}
+{% elif not rows %}<div class="empty">No {{ "" if state == "all" else state }} request.</div>
+{% else %}
+<div class="table-wrap">
+<table>
+<thead><tr><th>id</th><th>channel</th><th>sender</th><th>first message</th><th>requested</th><th>status</th><th></th></tr></thead>
+<tbody>
+{% for r in rows %}
+<tr>
+  <td>{{ r.id }}</td><td><span class="badge">{{ r.channel }}</span></td><td class="mono">{{ r.external_id }}</td>
+  <td><pre class="msg">{{ r.first_message_text }}</pre></td>
+  <td>{{ r.requested_at }}</td>
+  <td><span class="badge {{ 'badge-ok' if r.status == 'approved' else ('badge-bad' if r.status == 'denied' else 'badge-warn') }}">{{ r.status }}</span>{% if r.resolved_by %} <span class="meta">by {{ r.resolved_by }}</span>{% endif %}</td>
+  <td class="actions">
+  {% if r.status == "pending" %}
+    {% for command, label, style in (("approve-request", "Approve", ""), ("deny-request", "Deny", "danger")) %}
+    <form class="inline" method="post" action="/ui/op/{{ command }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="request_id" value="{{ r.id }}">
+      <input type="hidden" name="next" value="/ui/requests">
+      <button type="submit" class="small {{ style }}">{{ label }}</button>
+    </form>
+    {% endfor %}
+  {% endif %}
+  </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+{{ m.term(["./start.sh --admin list-requests --status " ~ state, "./start.sh --admin approve-request --request-id ID", "./start.sh --admin deny-request --request-id ID"]) }}
+{% endblock %}

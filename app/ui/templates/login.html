@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Sign in - ChannelAgent admin{% endblock %}
+{% block content %}
+<div class="signin-card">
+  <div class="brand"><span class="brand-mark" aria-hidden="true">&gt;_</span><span class="brand-name">ChannelAgent<small>Administration</small></span></div>
+  <h1>Sign in</h1>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="/ui/login">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label><span class="field-name">Name</span>
+      <input type="text" name="name" autocomplete="username" required></label>
+    <label><span class="field-name">Password</span>
+      <input type="password" name="password" autocomplete="current-password" required></label>
+    <label><span class="field-name">Code</span>
+      <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+        pattern="[0-9]{6}">
+      <small>From the authenticator app. Leave empty when the account has none.</small></label>
+    <button type="submit">Sign in</button>
+  </form>
+  {% if key_allowed %}
+  {# No named owner yet: the key is the way in, so it is shown open. #}
+  <details open>
+    <summary>Sign in with the admin key</summary>
+    <p class="meta">Until a named owner exists (<code>./start.sh --admin create-admin</code>).</p>
+    <form method="post" action="/ui/login">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label><span class="field-name">Admin key (API_SERVER_KEY)</span>
+        <input type="password" name="key" autocomplete="current-password" required></label>
+      <button type="submit" class="secondary">Sign in with the key</button>
+    </form>
+  </details>
+  {% endif %}
+</div>
+{% endblock %}

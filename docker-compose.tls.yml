@@ -1,0 +1,28 @@
+# Reference TLS reverse proxy for the Admin API. Use it on top of the
+# development compose file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+#
+# The API itself keeps its loopback-only publishing; clients reach it
+# through https://<TLS_SITE_ADDRESS>:<TLS_PORT>. The proxy is published on
+# loopback too, until you set TLS_BIND_ADDRESS to an address other machines
+# can reach: do that only with a certificate those machines trust.
+services:
+  tls-proxy:
+    image: caddy:2-alpine
+    depends_on:
+      - channelagent
+    environment:
+      TLS_SITE_ADDRESS: "${TLS_SITE_ADDRESS:-localhost}"
+      API_SERVER_PORT: "${API_SERVER_PORT:-8700}"
+    ports:
+      - "${TLS_BIND_ADDRESS:-127.0.0.1}:${TLS_PORT:-8443}:8443"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Holds the local certificate authority: keep it between restarts so
+      # the certificate clients already trust does not change.
+      - tls_proxy_data:/data
+    restart: unless-stopped
+
+volumes:
+  tls_proxy_data:

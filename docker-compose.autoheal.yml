@@ -1,0 +1,23 @@
+# Restarts the application container when Docker reports it unhealthy. Use it on
+# top of the development compose file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.autoheal.yml up -d
+#
+# `restart: unless-stopped` only reacts to an exit; the healthcheck only
+# reports. This small watcher (willfarrell/autoheal) restarts the containers that
+# carry the `autoheal` label and are `unhealthy`. It needs the Docker socket, which
+# is root-equivalent on the host: use it on a host you administer, not on a shared one.
+services:
+  channelagent:
+    labels:
+      autoheal: "true"
+
+  autoheal:
+    image: willfarrell/autoheal:latest
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: "10"
+      AUTOHEAL_START_PERIOD: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

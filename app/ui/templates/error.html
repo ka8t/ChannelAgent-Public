@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+{% if signed_in %}<div class="page-head"><div><h1>Refused</h1></div></div>{% else %}<div class="signin-card"><h1>Refused</h1>{% endif %}
+<p class="error">{{ message }}</p>
+<p><a class="button secondary" href="/ui/">Back to the overview</a></p>
+{% if not signed_in %}</div>{% endif %}
+{% endblock %}

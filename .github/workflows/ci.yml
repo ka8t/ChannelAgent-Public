@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Audit the locked dependencies (pip-audit)
+        # Fails on any known vulnerability in requirements.txt. A reviewed
+        # exception is added as --ignore-vuln <ID> here, with a comment
+        # saying why and until when (see README, "Updating dependencies").
+        run: pip-audit -r requirements.txt --no-deps --disable-pip
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Test (pytest)
+        run: pytest -v
+
+  docker-build:
+    # A separate job, not a step of lint-and-test: this specifically
+    # exists because real bugs were found this way and nowhere else —
+    # the Dockerfile once omitted alembic.ini/alembic/ entirely,
+    # which no unit test could catch, only an actual image build.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t channelagent:ci .
+
+      - name: The application does not run as root
+        run: |
+          uid=$(docker run --rm --entrypoint id channelagent:ci -u)
+          echo "uid in the image: $uid"
+          test "$uid" != 0
+          test "$uid" = 10001
+
+      - name: The image refuses to start without an encryption key
+        run: |
+          if timeout 60 docker run --rm channelagent:ci; then
+            echo "the image started without ENCRYPTION_KEY"; exit 1
+          fi
+
+      - name: The image starts and the Admin API answers only with the key
+        run: |
+          KEY=$(python3 -c "import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())")
+          API_KEY=$(openssl rand -hex 32)
+          docker run -d --name ca-ci -e ENCRYPTION_KEY="$KEY" -e API_SERVER_KEY=$API_KEY \
+            -e API_SERVER_PORT=8700 -e TELEGRAM_ALLOWED_USERS=111 -p 127.0.0.1:8700:8700 channelagent:ci
+          for i in $(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:8700/users && break; sleep 1; done
+          code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+          test "$(code http://127.0.0.1:8700/users)" = 401
+          test "$(code http://127.0.0.1:8700/docs)" = 401
+          test "$(code http://127.0.0.1:8700/openapi.json)" = 401
+          test "$(code -H "Authorization: Bearer $API_KEY" http://127.0.0.1:8700/users)" = 200
+          test "$(code -H "Authorization: Bearer $API_KEY" http://127.0.0.1:8700/docs)" = 200
+          docker logs ca-ci
+          docker rm -f ca-ci
+
+  secret-scan:
+    # Scans the whole history on every push. Exact non-secret test values are
+    # allowed in .gitleaks.toml.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan the whole history for secrets (gitleaks)
+        # The same pinned, checksum-checked gitleaks as the developers' virtualenv.
+        run: |
+          python3 -m venv .venv
+          scripts/install_gitleaks.sh
+          scripts/secret_scan.sh

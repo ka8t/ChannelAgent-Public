@@ -1,0 +1,12 @@
+# TLS reverse proxy in front of the Admin API. Used by
+# docker-compose.tls.yml, "Administering from
+# another machine".
+#
+# `tls internal` makes Caddy issue the certificate from its own local
+# certificate authority (self-signed as far as clients are concerned): fine
+# for a name that only you use, and what the reference test runs on. Clients
+# must trust that authority (curl --cacert, or import root.crt).
+{$TLS_SITE_ADDRESS:localhost}:8443 {
+	tls internal
+	reverse_proxy channelagent:{$API_SERVER_PORT:8700}
+}
