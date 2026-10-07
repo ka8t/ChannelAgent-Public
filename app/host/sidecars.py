@@ -11,7 +11,7 @@ A third-party server runs in its own container, never inside the application:
 - an image pinned by digest, from the allow-list MCP_SIDECAR_IMAGES in `.env` (`repo@sha256:…`
   or a local image id `sha256:…`); anything else is refused.
 
-The application reaches it through a forwarder container (python:3.12-slim, the project's own
+The application reaches it through a forwarder container (python:3.14-slim, the project's own
 base image, pinned by digest, standard library only) joined to the sidecar's network and to the
 default bridge, published on 127.0.0.1 only. Measured on Docker Desktop (2026-09-27): a container
 on an internal network cannot be published, and turning the bridge's masquerade off does not stop

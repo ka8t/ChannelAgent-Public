@@ -291,7 +291,7 @@ async def _sidecar_deploy(_params, body: SidecarIn):
         body.name, body.image, sidecars.allowed_images(values.get("MCP_SIDECAR_IMAGES", "")),
         body.egress,
     )  # fmt: skip
-    forwarder = values.get("MCP_SIDECAR_FORWARDER_IMAGE") or "python:3.12-slim"
+    forwarder = values.get("MCP_SIDECAR_FORWARDER_IMAGE") or "python:3.14-slim"
     return _job(
         "sidecar-deploy",
         lambda job: sidecars.deploy(

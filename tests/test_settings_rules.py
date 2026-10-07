@@ -94,7 +94,7 @@ VALID = {
     "HOST_HELPER_URL": "http://host.docker.internal:8701",
     "HOST_HELPER_GID": "1000",
     "MCP_SIDECAR_IMAGES": "ghcr.io/acme/mcp-x@sha256:" + "a" * 64 + ",sha256:" + "b" * 64,
-    "MCP_SIDECAR_FORWARDER_IMAGE": "python:3.12-slim",
+    "MCP_SIDECAR_FORWARDER_IMAGE": "python:3.14-slim",
     "RATE_LIMIT_MESSAGES_PER_MINUTE": "20",
     "RATE_LIMIT_CONCURRENT_TURNS": "0",
     "SELF_SERVICE_MAX_AGENTS": "10",

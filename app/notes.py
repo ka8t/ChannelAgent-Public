@@ -39,7 +39,7 @@ class Notes:
         self.max_bytes = max_bytes
 
     @classmethod
-    def from_environment(cls, environ=os.environ) -> "Notes":
+    def from_environment(cls, environ=os.environ) -> Notes:
         return cls(
             environ.get("NOTES_DIR", ""),
             int(environ.get("NOTES_MAX_BYTES") or DEFAULT_MAX_BYTES),

@@ -616,7 +616,7 @@ async def test_unknown_telegram_sender_still_gets_the_denial_reply(fresh_db):
 
 
 def test_capabilities_are_asked_of_the_server_when_the_client_list_predates_login(fake_imap):
-    """Python 3.12 keeps the capabilities read before authentication (no MOVE, no UIDPLUS):
+    """A client list read before authentication (no MOVE, no UIDPLUS; Python 3.12 kept it):
     the message was never filed (live mailbox, 2026-09-21).
     """
     fake = fake_imap({b"12": _raw(*TAGGED)})

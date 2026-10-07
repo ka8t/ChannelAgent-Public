@@ -1,9 +1,8 @@
 # ChannelAgent runtime image.
 #
-# python:3.12-slim, not the newest interpreter, so every dependency
-# here (langgraph, sqlalchemy, cryptography's compiled extension) has a
-# prebuilt wheel available — avoids source builds inside the image.
-FROM python:3.12-slim
+# python:3.14-slim: the same interpreter as the native virtualenv (start.sh --native),
+# CI and the dependency locks, so a test run here and one in the image agree.
+FROM python:3.14-slim
 
 WORKDIR /app
 

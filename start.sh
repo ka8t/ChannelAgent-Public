@@ -719,11 +719,49 @@ if [ "$MODE" = "native" ]; then
   fi
 fi
 
-setup_venv() {
-  if [ ! -d .venv ]; then
-    echo "==> Creating virtualenv (.venv)"
-    python3 -m venv .venv
+# The project's Python: .python-version, the same version as the image, CI and the
+# dependency locks. The virtualenv is made with it, and remade when it was made with another.
+PYTHON_VERSION="$(tr -d '[:space:]' < "$REPO_DIR/.python-version" 2>/dev/null || true)"
+PYTHON_VERSION="${PYTHON_VERSION:-3.14}"
+
+python_minor() {  # python_minor INTERPRETER -> "3.14", empty when it does not run
+  "$1" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null
+}
+
+find_python() {  # the first of python3.X and python3 that is the project's version
+  local candidate
+  for candidate in "python${PYTHON_VERSION}" python3; do
+    if command -v "$candidate" >/dev/null 2>&1 \
+        && [ "$(python_minor "$candidate")" = "$PYTHON_VERSION" ]; then
+      command -v "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+ensure_venv_python() {
+  local found python
+  if [ -x .venv/bin/python ]; then
+    found="$(python_minor .venv/bin/python)"
+    if [ "$found" != "$PYTHON_VERSION" ]; then
+      echo "==> .venv uses Python ${found:-unknown}, the project uses ${PYTHON_VERSION}: recreating it"
+      rm -rf .venv
+    fi
   fi
+  if [ ! -d .venv ]; then
+    if ! python="$(find_python)"; then
+      echo "!! Python ${PYTHON_VERSION} is required (python${PYTHON_VERSION}, or a python3 of that" \
+        "version); python3 here: $(python3 --version 2>&1 || echo none)" >&2
+      exit 1
+    fi
+    echo "==> Creating virtualenv (.venv, Python ${PYTHON_VERSION})"
+    "$python" -m venv .venv
+  fi
+}
+
+setup_venv() {
+  ensure_venv_python
   # shellcheck disable=SC1091
   source .venv/bin/activate
   echo "==> Installing dependencies"

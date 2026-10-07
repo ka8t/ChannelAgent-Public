@@ -86,7 +86,7 @@ class Limits:
     browser: bool = False  # render in headless Chromium when a plain request gets no text
 
     @classmethod
-    def from_environment(cls, environ=os.environ) -> "Limits":
+    def from_environment(cls, environ=os.environ) -> Limits:
         hosts = {
             h.strip().lower()
             for h in environ.get("WEB_FETCH_ALLOWED_HOSTS", "").split(",")

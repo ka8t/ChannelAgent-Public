@@ -94,7 +94,7 @@ Admin: ./start.sh and the web UI ──> one Admin API ──> the same database
 
 - macOS on Apple Silicon (the model runs on the GPU through Metal) or Linux; Docker for the
   container mode.
-- Python 3.12 or newer, `git`, `curl`, `openssl`.
+- Python 3.14 (`python3.14`, or a `python3` of that version), `git`, `curl`, `openssl`.
 - A `llama-server` build of [llama.cpp](https://github.com/ggml-org/llama.cpp) (the release
   archive for your platform) and a model in GGUF format, for example from Hugging Face
   (`./start.sh --admin pull-model --spec <repo>` downloads one once the application runs).

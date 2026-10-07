@@ -55,7 +55,7 @@ def _decode(value: str) -> str:
     )
 
 
-def _extract_body(msg: "email.message.Message") -> str:
+def _extract_body(msg: email.message.Message) -> str:
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == "text/plain" and not part.get("Content-Disposition"):
@@ -105,10 +105,10 @@ def _ensure_folder(imap: imaplib.IMAP4, folder: str) -> bool:
 
 
 def _capabilities(imap: imaplib.IMAP4) -> tuple[str, ...]:
-    """What the server supports after login. Under Python 3.12 (the image),
-    `imap.capabilities` keeps the list read before authentication, which has neither MOVE
-    nor UIDPLUS, so no message was ever filed (found on the live mailbox, 2026-09-21).
-    Python 3.14 refreshes it. When the client's list lacks both, ask the server.
+    """What the server supports after login. Python 3.12 kept in `imap.capabilities` the list
+    read before authentication, which has neither MOVE nor UIDPLUS, so no message was ever
+    filed (found on the live mailbox, 2026-09-21); 3.14 refreshes it, but a client list
+    that lacks both is still checked with the server, whatever the interpreter.
     """
     caps = tuple(getattr(imap, "capabilities", ()) or ())
     if not {"MOVE", "UIDPLUS"} & set(caps):

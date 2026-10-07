@@ -64,7 +64,7 @@ def _job():
 async def _deploy(egress="local"):
     return await sidecars.deploy(
         _job(), name="notes", image=IMAGE, port=8000, egress=egress, memory_mb=256, cpus=0.5,
-        forwarder_image="python:3.12-slim",
+        forwarder_image="python:3.14-slim",
     )  # fmt: skip
 
 

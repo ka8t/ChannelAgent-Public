@@ -107,7 +107,7 @@ class User(Base):
         Boolean, nullable=False, default=False, server_default=text("0")
     )
 
-    channel_identities: Mapped[list["ChannelIdentity"]] = relationship(
+    channel_identities: Mapped[list[ChannelIdentity]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -129,8 +129,8 @@ class ChannelIdentity(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
-    user: Mapped["User"] = relationship(back_populates="channel_identities")
-    permissions: Mapped[list["Permission"]] = relationship(
+    user: Mapped[User] = relationship(back_populates="channel_identities")
+    permissions: Mapped[list[Permission]] = relationship(
         back_populates="channel_identity", cascade="all, delete-orphan"
     )
 
@@ -148,7 +148,7 @@ class Permission(Base):
     kind: Mapped[PermissionKind] = mapped_column(_db_enum(PermissionKind), nullable=False)
     granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
-    channel_identity: Mapped["ChannelIdentity"] = relationship(back_populates="permissions")
+    channel_identity: Mapped[ChannelIdentity] = relationship(back_populates="permissions")
 
 
 class Agent(Base):
