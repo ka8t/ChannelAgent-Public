@@ -11,6 +11,9 @@ services:
       # The engine URL start.sh derived (a local engine: host.docker.internal:LLAMA_PORT);
       # run without start.sh, the value of .env.
       LLAMA_SERVER_URL: "${LLAMA_SERVER_URL:-}"
+      # The SearXNG address start.sh derived (http://searxng:8080 with
+      # SEARXNG_MANAGED=true); run without start.sh, the value of .env.
+      SEARXNG_URL: "${SEARXNG_URL:-}"
       # The host helper, when HOST_HELPER_ENABLED=true: Docker Desktop reaches the
       # host's loopback as host.docker.internal. On Linux Docker Engine, add
       # docker-compose.host-helper-linux.yml (a Unix socket instead).
@@ -29,4 +32,25 @@ services:
     # for parity with a Linux dev machine.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # Web search for the built-in "search" tool. Started by start.sh only when
+  # SEARXNG_MANAGED=true (profile "searxng"): a plain `docker compose up` never starts it.
+  # Read-only, no capability, its own user (searxng, uid 977), published on loopback only;
+  # the settings (a random secret_key, json in search.formats) are written once by start.sh
+  # into data/searxng/settings.yml. Image pinned by digest (2026.10.4-d48c4b555).
+  searxng:
+    image: searxng/searxng@sha256:76b0bf285aca014c7191fc4d9234c4bfb358624ac33d8883833d496c059ec072
+    profiles: ["searxng"]
+    user: "977:977"
+    read_only: true
+    tmpfs:
+      - /var/cache/searxng:uid=977,gid=977
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    ports:
+      - "127.0.0.1:${SEARXNG_PORT:-8888}:8080"
+    volumes:
+      - ./data/searxng/settings.yml:/etc/searxng/settings.yml:ro
     restart: unless-stopped

@@ -294,6 +294,7 @@ show_status() {
   fi
 
   show_host_helper
+  show_searxng
   # The machine's memory, a warning below 10 GiB available (system python3, no venv).
   echo "  memory           : $(python3 app/host_memory.py 2>/dev/null || echo unknown)"
 
@@ -425,6 +426,74 @@ show_host_helper() {
   fi
 }
 
+# SearXNG: the search engine of the built-in "search" tool, run in Docker by this script
+# when SEARXNG_MANAGED=true (docker-compose.yml, service searxng, profile searxng). A failure
+# leaves web search off for the run and starts everything else.
+searxng_settings() {  # data/searxng/settings.yml, written once: a random secret_key, json on
+  local file=data/searxng/settings.yml secret
+  if [ -f "$file" ]; then
+    if ! grep -q -- '- json' "$file"; then
+      echo "!! ${file} does not list json in search.formats: web_search cannot read the answers." >&2
+    fi
+    return 0
+  fi
+  mkdir -p data/searxng
+  secret="$(openssl rand -hex 32)"
+  # 644 inside data/ (700): only the container's own user (uid 977) needs to read it.
+  ( umask 022
+    printf 'use_default_settings: true\nserver:\n  secret_key: "%s"\n  limiter: false\n  image_proxy: false\nsearch:\n  formats:\n    - html\n    - json\n' "$secret" > "$file" )
+  echo "==> Wrote ${file} (a random secret_key, json in search.formats)."
+}
+
+start_searxng() {  # start_searxng native|docker -> exports SEARXNG_URL when SearXNG answers
+  [ "${SEARXNG_MANAGED:-false}" = "true" ] || return 0
+  local port="${SEARXNG_PORT:-8888}" code="000" _
+  if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+    echo "!! SEARXNG_MANAGED=true but Docker is not running: web search is off for this run." >&2
+    return 0
+  fi
+  searxng_settings
+  echo "==> Starting SearXNG (docker compose --profile searxng up -d searxng) on 127.0.0.1:${port}."
+  if ! docker compose --profile searxng up -d searxng; then
+    echo "!! SearXNG did not start: web search is off for this run." >&2
+    return 0
+  fi
+  for _ in $(seq 1 30); do
+    code="$(http_code "http://127.0.0.1:${port}/healthz")"
+    [ "$code" = "200" ] && break
+    sleep 1
+  done
+  if [ "$code" != "200" ]; then
+    echo "!! SearXNG does not answer on 127.0.0.1:${port} (docker compose logs searxng): web search is off for this run." >&2
+    return 0
+  fi
+  if [ "$1" = "docker" ]; then
+    SEARXNG_URL="http://searxng:8080"  # the application's container, on the same Compose network
+  else
+    SEARXNG_URL="http://127.0.0.1:${port}"
+  fi
+  export SEARXNG_URL
+  echo "==>   SearXNG is up; SEARXNG_URL=${SEARXNG_URL} for this run."
+}
+
+stop_searxng() {
+  [ "${SEARXNG_MANAGED:-false}" = "true" ] || return 0
+  command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || return 0
+  echo "==> Stopping SearXNG (docker compose --profile searxng stop searxng)."
+  docker compose --profile searxng stop searxng
+}
+
+show_searxng() {
+  local port="${SEARXNG_PORT:-8888}"
+  if [ "${SEARXNG_MANAGED:-false}" != "true" ]; then
+    echo "  SearXNG          : not managed (SEARXNG_MANAGED is not true)"
+  elif [ "$(http_code "http://127.0.0.1:${port}/healthz")" = "200" ]; then
+    echo "  SearXNG          : up at http://127.0.0.1:${port}"
+  else
+    echo "  SearXNG          : down on port ${port} (it starts with the application)"
+  fi
+}
+
 remote_api() {  # true when API_URL names the API and this run is not the helper's own
   [ -n "${API_URL:-}" ] && [ "${START_SH_LOCAL:-}" != "1" ]
 }
@@ -466,8 +535,9 @@ stop_things() {
   if [ "$also_llama" = "1" ]; then
     stop_pid_file "llama-server" .llama-server.pid "llama-server" || status=1
     stop_pid_file "host helper" .host-helper.pid "app.host.helper" || status=1
+    stop_searxng || status=1
   else
-    echo "==> llama-server left as it is, the host helper too (./start.sh --stop --all stops them)."
+    echo "==> llama-server left as it is, the host helper and SearXNG too (./start.sh --stop --all stops them)."
   fi
   return "$status"
 }
@@ -1021,6 +1091,7 @@ if [ "$MODE" = "docker" ]; then
     setup_venv
     start_host_helper || exit 1
   fi
+  start_searxng docker
   build_flag="--build"
   if [ "$BUILD" = "0" ]; then
     build_flag=""  # the image as it is
@@ -1044,6 +1115,7 @@ echo "==> Native mode: inference engine (${ENGINE_KIND}) at ${LLAMA_SERVER_URL}"
 
 echo native > .run-mode
 start_host_helper || exit 1
+start_searxng native
 
 if [ "$DETACH" = "1" ]; then
   mkdir -p logs
@@ -1077,6 +1149,7 @@ on_ctrl_c() {
   stop_pid_file "native app" .app.pid "app.main" || true
   stop_pid_file "llama-server" .llama-server.pid "llama-server" || true
   stop_pid_file "host helper" .host-helper.pid "app.host.helper" || true
+  stop_searxng || true
   exit 130
 }
 trap on_ctrl_c INT

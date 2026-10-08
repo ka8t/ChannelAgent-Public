@@ -14,6 +14,8 @@ from app.api.errors import error_responses
 from app.api.schemas import (
     ExposureOut,
     McpApproveIn,
+    McpBuiltinEnableIn,
+    McpBuiltinEnableOut,
     McpCallOut,
     McpGrantOut,
     McpGrantsIn,
@@ -282,6 +284,33 @@ async def approve_definitions(
     )
     await session.commit()
     return [McpToolOut(**row) for row in rows]
+
+
+@router.post(
+    "/mcp/builtins/{builtin_id}/enable",
+    dependencies=[require(Scope.ADMIN)],
+    response_model=McpBuiltinEnableOut,
+    tags=["mcp"],
+    responses=error_responses(404, 409),
+)
+async def enable_builtin(
+    builtin_id: str, body: McpBuiltinEnableIn, session: AsyncSession = Depends(get_db_session)
+) -> McpBuiltinEnableOut:
+    """Turn a built-in server (time, calc, web, feeds, notes, search) on for one user in one
+    call: declare it if needed, enable it, approve its new definitions, grant it to every agent
+    of the user and add its tools to `agent_id`. Adds, never replaces. A tool whose definition
+    changed since its approval is refused (409): review it with list-tools. The answer names
+    the required setting still empty (`missing_setting`) and the command that sets it."""
+    result = await service.enable_builtin(
+        session,
+        builtin_id,
+        _live_tools,
+        user_id=body.user_id,
+        agent_id=body.agent_id,
+        actor=current_actor(),
+    )
+    await session.commit()
+    return McpBuiltinEnableOut(**result)
 
 
 def _grant_out(grant) -> McpGrantOut:

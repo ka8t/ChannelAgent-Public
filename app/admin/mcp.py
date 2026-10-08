@@ -19,6 +19,7 @@ from app.admin.service import (
     record_admin_event,
 )
 from app.db.models import Agent, McpCall, McpEgress, McpGrant, McpServer, McpTransport, User
+from app.mcp.builtin import BUILTIN_EGRESS, missing_setting
 from app.mcp.builtin import REGISTRY as BUILTIN_REGISTRY
 from app.mcp.manager import ServerConfig
 from app.mcp.policy import (
@@ -549,6 +550,119 @@ async def approve_definitions(
         details={"name": server.name, "approved": sorted(names), "changed": changes},
     )
     return review_tools(server, live_tools)
+
+
+# --- one command for a built-in server ---
+
+
+async def enable_builtin(
+    session: AsyncSession,
+    builtin_id: str,
+    live_tools_of,
+    *,
+    user_id: int,
+    agent_id: int | None,
+    actor: str,
+) -> dict:
+    """Turn a vetted built-in server on for one user, in one call, adding and never replacing:
+    declare it when no server runs this built-in (named after it, with its egress label),
+    enable it, approve the definitions it offers that were never approved, grant it to every
+    agent of the user, and add its tools to `agent_id`'s list. A tool whose live definition
+    differs from the approved one is refused (409): that change is reviewed with `list-tools`
+    and `approve-definitions`, never approved here. `live_tools_of(server)` connects to the
+    server and returns its tools. Returns what was done, and the required setting still empty.
+    """
+    if builtin_id not in BUILTIN_REGISTRY:
+        raise NotFoundError(
+            f"No built-in server {builtin_id!r}; one of: {', '.join(sorted(BUILTIN_REGISTRY))}"
+        )
+    if await session.get(User, user_id) is None:
+        raise UserNotFoundError(f"No user with id {user_id}")
+    agent = None
+    if agent_id is not None:
+        agent = await session.get(Agent, agent_id)
+        if agent is None or agent.user_id != user_id:
+            raise InvalidInputError(f"Agent {agent_id} does not belong to user {user_id}")
+
+    server = (
+        await session.execute(
+            select(McpServer)
+            .where(McpServer.protocol == McpTransport.STDIO, McpServer.builtin_id == builtin_id)
+            .order_by(McpServer.id)
+        )
+    ).scalars().first()  # fmt: skip
+    created = server is None
+    if created:
+        server = await create_server(
+            session,
+            name=builtin_id,
+            protocol=McpTransport.STDIO.value,
+            builtin_id=builtin_id,
+            fields={"egress": BUILTIN_EGRESS[builtin_id]},
+            actor=actor,
+        )
+    enabled = not server.enabled
+    server.enabled = True
+    await session.flush()
+
+    live_tools = await live_tools_of(server)
+    rows = review_tools(server, live_tools)
+    changed = sorted(row["name"] for row in rows if row["approval"] == "changed")
+    if changed:
+        raise ConflictError(
+            f"{server.name}: the definition of {', '.join(changed)} changed since it was approved;"
+            " read it with list-tools, then approve-definitions"
+        )
+    new = [row["name"] for row in rows if row["approval"] == "new"]
+    if new:
+        await approve_definitions(session, server.id, live_tools, tools=new, actor=actor)
+
+    covered = (
+        await session.execute(
+            select(McpGrant.id).where(
+                McpGrant.user_id == user_id,
+                McpGrant.agent_id.is_(None),
+                McpGrant.server_name == server.name,
+                McpGrant.tool_name.is_(None),
+            )
+        )
+    ).first()  # fmt: skip
+    granted = covered is None
+    if granted:
+        session.add(McpGrant(user_id=user_id, agent_id=None, server_name=server.name))
+
+    added: list[str] = []
+    if agent is not None:
+        from app.admin.service import MAX_TOOLS
+
+        current = list(agent.tools or [])
+        offered = [t.name for t in live_tools if t.name not in (server.disabled_tools or [])]
+        added = [n for n in (f"mcp__{server.name}__{t}" for t in offered) if n not in current]
+        if len(current) + len(added) > MAX_TOOLS:
+            raise InvalidInputError(f"An agent has at most {MAX_TOOLS} tools")
+        agent.tools = current + added
+    await session.flush()
+
+    result = {
+        "server_id": server.id,
+        "server": server.name,
+        "created": created,
+        "enabled": enabled,
+        "approved": new,
+        "granted": granted,
+        "agent_id": agent_id,
+        "added_tools": added,
+        "missing_setting": missing_setting(builtin_id),
+    }
+    await record_admin_event(
+        session,
+        actor=actor,
+        action="mcp_builtin.enable",
+        target_type="user",
+        target_id=user_id,
+        details={k: v for k, v in result.items() if k != "missing_setting"},
+    )
+    return result
 
 
 # --- exposure ---

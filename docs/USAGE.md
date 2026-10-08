@@ -59,7 +59,7 @@ and `/export`. By e-mail, write a message whose subject contains the trigger tag
 
 ## Administration commands
 
-`./start.sh --admin COMMAND [flags]` runs one of the 129 commands below;
+`./start.sh --admin COMMAND [flags]` runs one of the 130 commands below;
 `./start.sh --admin` alone shows them as menus, and the admin UI has one page per command.
 Each command is one call to the Admin API and needs at least the scope shown
 (`read` < `operate` < `admin` < `owner`).
@@ -206,6 +206,7 @@ reads it from standard input).
 | `create-server` | admin | `--name STRING` `--protocol stdio|http` [`--builtin-id STRING`] [`--url STRING`] [`--env-vars OBJECT`] [`--egress local|lan|internet`, default local] [`--enabled BOOLEAN`, default true] [`--timeout-seconds INTEGER`, default 20] [`--concurrency-limit INTEGER`, default 2] [`--result-max-bytes INTEGER`, default 1000000] [`--tool-policies OBJECT`] [`--shared-credentials BOOLEAN`, default false] [`--confirm-timeout-seconds INTEGER`, default 120] | Declare a server: `stdio` names a vetted built-in, `http` an exact URL. Its ... |
 | `delete-server` | admin | `--server-id INTEGER` | Remove a declared server; already-recorded McpCall rows are unaffected. |
 | `deploy-sidecar` | owner | `--name STRING` `--image STRING` [`--port INTEGER`, default 8000] [`--egress local|lan|internet`, default local] [`--memory-mb INTEGER`, default 256] [`--cpus NUMBER`, default 0.5] | Run a third-party MCP server in its own container (an image pinned in ... (job) |
+| `enable-builtin` | admin | `--builtin-id STRING` `--user-id INTEGER` [`--agent-id INTEGER`] | Turn a built-in server (time, calc, web, feeds, notes, search) on for one user in one ... |
 | `get-agent-exposure` | read | `--agent-id INTEGER` | What the agent's MCP tools and memory can do together: private data access, ... |
 | `get-server` | read | `--server-id INTEGER` | One declared server by id. |
 | `list-calls` | admin | [`--limit INTEGER`, default 50] [`--offset INTEGER`, default 0] [`--user-id INTEGER`] [`--server-name STRING`] [`--decision STRING`] | Every tool call, newest first, refused ones included, with the decision taken ... |

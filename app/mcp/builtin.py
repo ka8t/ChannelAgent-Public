@@ -38,6 +38,44 @@ BUILTIN_SETTINGS: dict[str, tuple[str, ...]] = {
 }
 
 
+# The egress label `enable-builtin`Declares each built-in with: what its tools reach.
+BUILTIN_EGRESS: dict[str, str] = {
+    "time": "local",
+    "calc": "local",
+    "notes": "local",
+    "web": "internet",
+    "feeds": "internet",
+    "search": "internet",
+}
+
+# The setting without which a built-in refuses every call, and what to put there.
+BUILTIN_REQUIRED: dict[str, tuple[str, str]] = {
+    "web": ("WEB_FETCH_ALLOWED_HOSTS", "the hosts pages may come from, comma separated, or *"),
+    "feeds": ("WEB_FETCH_ALLOWED_HOSTS", "the hosts feeds may come from, comma separated, or *"),
+    "notes": ("NOTES_DIR", "the absolute path of a folder of Markdown notes"),
+    "search": (
+        "SEARXNG_URL",
+        "the address of a SearXNG instance; SEARXNG_MANAGED=true makes start.sh run one",
+    ),
+}
+
+
+def missing_setting(builtin_id: str) -> dict[str, str] | None:
+    """The required setting of this built-in when it is empty, with what it needs (never its
+    value), or None."""
+    from app.config import get_settings
+
+    required = BUILTIN_REQUIRED.get(builtin_id)
+    if required is None:
+        return None
+    name, needs = required
+    settings = get_settings()
+    field = next(f for f, info in type(settings).model_fields.items() if info.alias == name)
+    if str(getattr(settings, field) or "").strip():
+        return None
+    return {"name": name, "needs": needs, "command": f"./start.sh --config {name}=..."}
+
+
 def builtin_environment(builtin_id: str | None) -> dict[str, str]:
     """The settings a built-in server receives, read from the application's settings."""
     from app.config import get_settings

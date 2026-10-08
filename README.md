@@ -78,17 +78,34 @@ written.
 ## How it works
 
 ```
-Telegram / e-mail ──> access check (database) ──> LangGraph agent ──> llama-server (local model)
-                                                       │
-                              tools (MCP), memory, scheduled tasks, encrypted history
-Admin: ./start.sh and the web UI ──> one Admin API ──> the same database
+Telegram / e-mail / ./start.sh --chat
+   │
+   ▼
+access check (database) ── unknown sender: access request, admins told, no model call
+   │
+   ├── /newagent, /editagent ──> agent builder: picks a template, asks what is missing,
+   │                             shows a summary, creates the agent and its task on "yes"
+   ├── /task, /agent, /model (alone), /new, /export ──> answered without the model
+   │
+   ▼
+the turn of the user's current agent
+   1. model: the one named in /model <name> <message>, else the agent's, else the tool model
+      (agent with tools), else the routing rules, else the default model
+   2. context: the agent's system prompt, its memory, a summary of older messages and the
+      recent conversation (one conversation per user and agent, encrypted)
+   3. llama-server answers, or asks for tools (MCP)
+   4. each tool call is checked (granted to this user? definition approved? policy allow,
+      confirm or deny?); a "confirm" tool asks the user yes or no first; the result goes back
+      to the model, until it answers
+   │
+   ▼
+the answer, shown while it is written; the message, the answer and every tool call are in the
+audit trail
 ```
 
-- Every message is checked against the database: who the sender is, and whether they have access.
-- Each user and each agent has its own conversation, memory and tools.
-- Tools come from MCP servers (a standard way to plug tools into a model): web pages, RSS feeds,
-  time, or your own. Each tool is granted per user, and risky ones ask for confirmation.
-- Every command and option: [`docs/USAGE.md`](docs/USAGE.md).
+A scheduled task runs the same turn at its time and sends the answer on the channel chosen for
+it. Administration (`./start.sh` and the web UI) goes through one Admin API to the same database.
+Details and diagrams: [``].
 
 ## Requirements
 
@@ -203,6 +220,76 @@ a time, at most 10 agents and 20 tasks, a task at most every 15 minutes
 conversations; you can read theirs (logs), so tell them. The engine answers one person at a
 time: with several users, answers queue.
 
+## Models
+
+The engine is `llama-server`; models are GGUF files in `models/` (`MODELS_DIR`).
+
+| Step | Command |
+|---|---|
+| See the models and the one loaded | `./start.sh --admin list-models` |
+| Download one (Hugging Face `<repo>[:quant]`, or an https URL) | `./start.sh --admin pull-model --spec <repo>:Q4_K_M` |
+| Copy a GGUF file you already have | `./start.sh --admin import-model --path /path/model.gguf` |
+| Will it fit in memory with this context? | `./start.sh --admin estimate-model --name <file> --ctx 32768` |
+| How fast is it here? (temporary engine, one question) | `./start.sh --admin benchmark-model --name <file>` |
+| Use it | `./start.sh --config MODEL_FILE=<file>`, then restart |
+| Delete one | `./start.sh --admin delete-model --name <file>` |
+
+**Several models at once.** `./start.sh --config LLAMA_ROUTER_MODE=true`: every model of
+`models/` can then answer, loaded on demand (at most `LLAMA_MODELS_MAX` at once). Which one
+answers a message, first match wins:
+
+1. the user's choice for one message: `/model <name> <message>` (`/model` alone lists them);
+2. the model set on the agent: `./start.sh --admin update-agent --agent-id N --model <name>`;
+3. for an agent that has tools, the tool model: `set-routing --tool-model <name>`;
+4. the routing rules, on the message's length or its first word, then the default model:
+   `get-routing` / `set-routing --default-model <name> --rules '[...]'`. `set-routing`
+   replaces the whole table: give every field you want to keep.
+
+A model the engine does not have falls back to the default model, and the log says so.
+
+## Tools (MCP)
+
+The model reaches the outside world only through tools, served by MCP servers (MCP: a standard
+protocol to plug tools into a model). Six servers come with the application:
+
+| Server | Tools | Needs |
+|---|---|---|
+| `time` | `get_time` | nothing |
+| `calc` | `calculate`, `convert` (exact arithmetic, dates, units) | nothing |
+| `web` | `fetch_page` (read one web page) | `WEB_FETCH_ALLOWED_HOSTS` (empty: every page refused; `*`: any public host) |
+| `feeds` | `read_feed` (RSS and Atom) | the feed hosts in `WEB_FETCH_ALLOWED_HOSTS`; `create-feed` lists the feeds `/newagent` may propose |
+| `notes` | `list_notes`, `read_note`, `search_notes`, `write_note` | `NOTES_DIR`, a folder of Markdown notes |
+| `search` | `web_search` | a [SearXNG](https://docs.searxng.org/) instance: `./start.sh --config SEARXNG_MANAGED=true` makes `start.sh` run one in Docker and set `SEARXNG_URL`; or `SEARXNG_URL` to your own (with `json` in `search.formats` of its `settings.yml`) |
+
+No tool is on by default. One command gives a built-in server to a user and adds its tools to one
+of their agents, here web search and page reading for user 1 and agent 1:
+
+```bash
+./start.sh --config SEARXNG_MANAGED=true      # then restart: start.sh runs SearXNG in Docker
+./start.sh --admin enable-builtin --builtin-id search --user-id 1 --agent-id 1
+./start.sh --admin enable-builtin --builtin-id web --user-id 1 --agent-id 1
+```
+
+`enable-builtin` declares the server when needed, enables it, approves its new tool definitions,
+grants it to every agent of the user and adds its tools to the agent. It adds and never replaces,
+and a second call changes nothing. Its answer names the required setting that is still empty
+(`missing_setting`) with the `./start.sh --config` command that sets it.
+
+The same steps one by one, for a server that is not built in or for finer grants:
+`create-server`, `approve-definitions`, `replace-grants`, `update-agent --tools`.
+
+- `approve-definitions` pins what the tools say they do: if a tool's description changes later,
+  the tool is off until approved again.
+- `replace-grants` replaces every grant of that user, and `update-agent --tools` the agent's
+  list: give the whole list. A grant without `agent_id` covers all of the user's agents, and only
+  those tools are proposed by `/newagent`.
+- A tool whose definition changed since it was approved is refused by `enable-builtin`: read the
+  change with `list-tools`, then `approve-definitions`.
+- A tool that writes or sends data out (`write_note`, `web_search`) asks the user "yes" first;
+  `toggle-tool --policy allow|confirm|deny` changes that per tool.
+- `list-calls` shows every tool call, refused ones included. Another MCP server runs in its own
+  container: `deploy-sidecar` (owner), then `create-server --protocol http --url ...`.
+
 ## Everyday commands
 
 | Command | Does |
@@ -214,7 +301,7 @@ time: with several users, answers queue.
 | `./start.sh --admin` | Menu over every administration command |
 | `./start.sh --admin COMMAND` | One administration command (`--admin describe` lists them all) |
 | `./start.sh --chat [--agent NAME]` | Talk to one of your agents from the terminal, through the API (needs a terminal identity: `--admin add-channel-identity --user-id N --channel terminal --identifier owner`) |
-| `./start.sh --admin list-models` / `pull-model --spec <repo>` | Installed models / download one (also `import-model --path`, `delete-model --name`) |
+| `./start.sh --admin list-models` / `pull-model --spec <repo>` | Installed models / download one (see "Models") |
 | `./start.sh --restore` / `--rekey` | Restore a backup / change the encryption key |
 
 ## Commands users type (Telegram)

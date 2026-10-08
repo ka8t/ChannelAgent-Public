@@ -124,7 +124,7 @@ def test_one_question_per_variable_in_the_order_of_the_example(files):
     answers.run(env, example)
     asked = [p.split(" [")[0] for p in answers.prompts[:-1] + answers.secret_prompts]
     assert sorted(asked) == sorted(settings_rules.example_keys(str(example)))
-    assert len(asked) == 72 == len(settings_rules.example_keys(str(example)))
+    assert len(asked) == 74 == len(settings_rules.example_keys(str(example)))
 
 
 def test_changes_are_checked_written_once_and_the_previous_env_kept(files):

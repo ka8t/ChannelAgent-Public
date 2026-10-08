@@ -83,6 +83,8 @@ VALID = {
     "WEB_FETCH_BROWSER": "true",
     "NOTES_DIR": "/Users/me/Documents/Vault",
     "NOTES_MAX_BYTES": "200000",
+    "SEARXNG_MANAGED": "true",
+    "SEARXNG_PORT": "8888",
     "SEARXNG_URL": "http://127.0.0.1:8888",
     "SEARCH_MAX_RESULTS": "8",
     "API_SERVER_KEY": HEX_KEY,

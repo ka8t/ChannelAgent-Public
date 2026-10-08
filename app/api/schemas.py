@@ -488,6 +488,32 @@ class McpGrantsIn(BaseModel):
     grants: list[McpGrantItem] = Field(max_length=500)
 
 
+class McpBuiltinEnableIn(BaseModel):
+    """`agent_id` (optional) gets the server's tools added to its list."""
+
+    model_config = ConfigDict(extra="forbid")
+    user_id: int = Field(description="the user who gets the server, for every agent of theirs")
+    agent_id: int | None = Field(default=None, description="an agent of that user: its tools list")
+
+
+class McpMissingSettingOut(BaseModel):
+    name: str
+    needs: str
+    command: str
+
+
+class McpBuiltinEnableOut(BaseModel):
+    server_id: int
+    server: str
+    created: bool
+    enabled: bool
+    approved: list[str]
+    granted: bool
+    agent_id: int | None
+    added_tools: list[str]
+    missing_setting: McpMissingSettingOut | None
+
+
 class McpGrantOut(BaseModel):
     id: int
     user_id: int

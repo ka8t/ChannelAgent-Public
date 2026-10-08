@@ -369,6 +369,8 @@ RULES: dict[str, str] = {
     "WEB_FETCH_BROWSER": "bool",
     "NOTES_DIR": "abs_path",
     "NOTES_MAX_BYTES": "bytes",
+    "SEARXNG_MANAGED": "bool",
+    "SEARXNG_PORT": "port",
     "SEARXNG_URL": "http_url",
     "SEARCH_MAX_RESULTS": "posint",
 }
@@ -413,6 +415,8 @@ REQUIRED = frozenset(
         "WEB_FETCH_CACHE_SECONDS",
         "NOTES_MAX_BYTES",
         "SEARCH_MAX_RESULTS",
+        "SEARXNG_MANAGED",
+        "SEARXNG_PORT",
     }
 )
 
