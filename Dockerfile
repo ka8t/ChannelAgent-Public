@@ -2,7 +2,7 @@
 #
 # python:3.14-slim: the same interpreter as the native virtualenv (start.sh --native),
 # CI and the dependency locks, so a test run here and one in the image agree.
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 
